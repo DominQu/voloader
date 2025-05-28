@@ -1,0 +1,18 @@
+[project]
+name = "voloader"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.2.6",
+    "opencv-python>=4.11.0.86",
+    "torch>=2.7.0",
+]
+
+[project.scripts]
+voloader = "voloader:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
