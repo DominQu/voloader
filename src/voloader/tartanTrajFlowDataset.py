@@ -16,7 +16,7 @@ class TrajFolderDataset(Dataset):
         self.rgbfiles.sort()
         self.imgfolder = imgfolder
 
-        print('Find {} image files in {}'.format(len(self.rgbfiles), imgfolder))
+        print('Found {} image files in {}'.format(len(self.rgbfiles), imgfolder))
 
         if flowdir is not None:
             flow_files = listdir(flowdir)
@@ -54,10 +54,7 @@ class TrajFolderDataset(Dataset):
         img1 = cv2.imread(imgfile1)
         img2 = cv2.imread(imgfile2)
         
-        flowfile = self.flowfiles[idx]
-        flow = np.load(flowfile) if flowfile is not None else None
-
-        res = {'img1': img1, 'img2': img2, 'flow': flow}
+        res = {'img1': img1, 'img2': img2}
 
         h, w, _ = img1.shape
         intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
@@ -65,6 +62,10 @@ class TrajFolderDataset(Dataset):
 
         if self.transform:
             res = self.transform(res)
+        
+        flowfile = self.flowfiles[idx]
+        flow = np.load(flowfile) if flowfile is not None else None
+        res['flow'] = flow
 
         if self.motions is None:
             return res
