@@ -8,7 +8,7 @@ from .utils import make_intrinsics_layer
 class TrajFolderDataset(Dataset):
     """scene flow synthetic dataset. """
 
-    def __init__(self, imgfolder , posefile = None, transform = None, 
+    def __init__(self, imgfolder , posefile = None, transform = None, flowdir = None,
                     focalx = 320.0, focaly = 320.0, centerx = 320.0, centery = 240.0):
         
         files = listdir(imgfolder)
@@ -18,6 +18,14 @@ class TrajFolderDataset(Dataset):
 
         print('Find {} image files in {}'.format(len(self.rgbfiles), imgfolder))
 
+        if flowdir is not None:
+            flow_files = listdir(flowdir)
+            self.flowfiles = [(flowdir +'/'+ ff) for ff in flow_files if ff.endswith('flow.npy')]
+            self.flowfiles.sort()
+            assert len(self.rgbfiles) == len(self.flowfiles) + 1, "The number of flow files should be one less than the number of image files."
+        else:
+            self.flowfiles = [None] * (len(self.rgbfiles) - 1)
+        
         if posefile is not None and posefile!="":
             poselist = np.loadtxt(posefile).astype(np.float32)
             assert(poselist.shape[1]==7) # position + quaternion
@@ -31,7 +39,6 @@ class TrajFolderDataset(Dataset):
 
         self.N = len(self.rgbfiles) - 1
 
-        # self.N = len(self.lines)
         self.transform = transform
         self.focalx = focalx
         self.focaly = focaly
@@ -46,8 +53,11 @@ class TrajFolderDataset(Dataset):
         imgfile2 = self.rgbfiles[idx+1].strip()
         img1 = cv2.imread(imgfile1)
         img2 = cv2.imread(imgfile2)
+        
+        flowfile = self.flowfiles[idx]
+        flow = np.load(flowfile) if flowfile is not None else None
 
-        res = {'img1': img1, 'img2': img2 }
+        res = {'img1': img1, 'img2': img2, 'flow': flow}
 
         h, w, _ = img1.shape
         intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
