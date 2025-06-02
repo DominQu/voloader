@@ -64,7 +64,7 @@ class TrajFolderDataset(Dataset):
             res = self.transform(res)
         
         flowfile = self.flowfiles[idx]
-        flow = np.load(flowfile) if flowfile is not None else None
+        flow = np.load(flowfile).transpose((2, 0, 1)) if flowfile is not None else None
         res['flow'] = flow
 
         if self.motions is None:
