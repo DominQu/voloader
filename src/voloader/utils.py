@@ -104,7 +104,8 @@ class CropCenter(object):
 
         return sample
 
-class ToTensor(object):
+class AsChannelFirstTensor(object):
+    """Convert a sample of data (tuple) to torch tensor with channel at first dimension."""
     def __call__(self, sample):
         sss = time.time()
 

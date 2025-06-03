@@ -34,9 +34,9 @@ class TartanDataset(Dataset):
         self.N = 0
         self.data_path = Path(data_path)
         if train:
-            trajectories = list(data_path.glob('*/*/*'))
+            trajectories = list(self.data_path.glob('*/*/*'))
         else:
-            trajectories = list(data_path.glob('*'))
+            trajectories = list(self.data_path.glob('*'))
         self.combined = combined
         self.dataset = self._load_data(trajectories, self.combined)
         self.transform = transform
@@ -51,7 +51,7 @@ class TartanDataset(Dataset):
             trajectories (list): List of paths to trajectories.
             combined (bool): If True, combine all trajectories into common lists.
         Returns:
-            dict: Dictionary containing images, flows, and poses from/for each trajectory.
+            dict: Dictionary containing images, flows, and relative poses from/for each trajectory.
         """
         
         print("Building TartanAir dataset")
@@ -60,7 +60,7 @@ class TartanDataset(Dataset):
             dataset = {
                 'images': [],
                 'flows': [],
-                'poses': []
+                'relposes': []
             }
         else:
             dataset = {}
@@ -70,7 +70,8 @@ class TartanDataset(Dataset):
             flows = sorted(traj.glob('flow/*flow.npy'))
 
             assert len(images) == len(flows) + 1, \
-            "The number of flow files should be one less than the number of image files."
+            "The number of flow files should be one less than the number of image files. " \
+            f"Found {len(images)} images and {len(flows)} flow files in {traj}."
 
             poselist = np.loadtxt(traj / "pose_left.txt").astype(np.float32)
             assert(poselist.shape[1]==7) # position + quaternion
@@ -83,10 +84,10 @@ class TartanDataset(Dataset):
             if combined:
                 dataset['images'].extend(images)
                 dataset['flows'].extend(flows)
-                dataset['poses'].extend(motions)
+                dataset['relposes'].extend(motions)
             else:
                 dataset[traj] = {'images': images, 'flows': flows, 
-                    'poses': poses}
+                    'relposes': motions}
             self.N += len(flows)
 
         return dataset
@@ -104,21 +105,19 @@ class TartanDataset(Dataset):
         img2 = cv2.imread(imgfile2)
         
         res = {'img1': img1, 'img2': img2}
-
         h, w, _ = img1.shape
         intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
         res['intrinsic'] = intrinsicLayer  
 
-        flowfile = self.flowfiles[idx]
-        flow = np.load(flowfile).transpose((2, 0, 1)) if flowfile is not None else None
+        flowfile = self.dataset['flows'][idx]
+        flow = np.load(flowfile)
         res['flow'] = flow
 
-        if self.motions is not None:
-            res['motion'] = self.motions[idx]
+        res['relpose'] = self.dataset['relposes'][idx]
             
         if self.transform:
             res = self.transform(res)
-        
+
         return res
 
 class TrajFolderDataset(Dataset):
