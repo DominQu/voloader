@@ -1,9 +1,13 @@
 import numpy as np
-#import cv2
-#import pyrr
 from scipy.spatial.transform import Rotation as R
 
 def line2mat(line_data):
+    """Convert a line of data to a 4x4 transformation matrix.
+    Args:
+        line_data (numpy.ndarray): A 12-element array representing a transformation matrix.
+    Returns:
+        numpy.matrix: A 4x4 transformation matrix.
+    """
     mat = np.eye(4)
     mat[0:3,:] = line_data.reshape(3,4)
     return np.matrix(mat)
@@ -22,8 +26,15 @@ def motion2pose(data):
     return all_pose
 
 def pose2motion(data, skip=0):
+    """Convert a sequence of poses to a sequence of motions. Both are in KITTI pose format.
+    Args:
+        data (numpy.ndarray): Array of shape (N, 12) representing N poses.
+        skip (int): Number of frames to skip when calculating motion.
+    Returns:
+        numpy.ndarray: Array of shape (N-1-skip, 12) representing the motion between consecutive poses.
+    """
     data_size = data.shape[0]
-    all_motion = np.zeros((data_size-1,12))
+    all_motion = np.zeros((data_size-1-skip,12))
     for i in range(0,data_size-1-skip):
         pose_curr = line2mat(data[i,:])
         pose_next = line2mat(data[i+1+skip,:])
@@ -33,17 +44,42 @@ def pose2motion(data, skip=0):
     return all_motion
 
 def SE2se(SE_data):
+    """Convert a 4x4 transformation matrix to a 6-element vector.
+    Args:
+        SE_data (numpy.ndarray): A 4x4 transformation matrix.
+    Returns:
+        numpy.ndarray: A 6-element vector containing the position and rotation in axis-angle representation.
+    """
     result = np.zeros((6))
     result[0:3] = np.array(SE_data[0:3,3].T)
     result[3:6] = SO2so(SE_data[0:3,0:3]).T
     return result
+
 def SO2so(SO_data):
+    """Convert a 3x3 rotation matrix to a 3-element vector in axis-angle representation.
+    Args:
+        SO_data (numpy.ndarray): A 3x3 rotation matrix.
+    Returns:
+        numpy.ndarray: A 3-element vector representing the rotation in axis-angle representation.
+    """
     return R.from_matrix(SO_data).as_rotvec()
 
 def so2SO(so_data):
+    """Convert a 3-element vector in axis-angle representation to a 3x3 rotation matrix.
+    Args:
+        so_data (numpy.ndarray): A 3-element vector representing the rotation in axis-angle representation.
+    Returns:
+        numpy.ndarray: A 3x3 rotation matrix.
+    """
     return R.from_rotvec(so_data).as_matrix()
 
 def se2SE(se_data):
+    """Convert a 6-element vector to a 4x4 transformation matrix.
+    Args:
+        se_data (numpy.ndarray): A 6-element vector containing position and rotation in axis-angle representation.
+    Returns:
+        numpy.matrix: A 4x4 transformation matrix.
+    """
     result_mat = np.matrix(np.eye(4))
     result_mat[0:3,0:3] = so2SO(se_data[3:6])
     result_mat[0:3,3]   = np.matrix(se_data[0:3]).T
@@ -69,10 +105,15 @@ def ses_mean(se_datas):
     return se_result
 
 def ses2poses(data):
+    """Convert a sequence of 6-element vectors to a sequence of poses.
+    Args:
+        data (numpy.ndarray): Array of shape (N, 6) representing N poses in SE(2).
+    Returns:
+        numpy.ndarray: Array of shape (N+1, 12) representing the poses in SE(3)."""
     data_size = data.shape[0]
     all_pose = np.zeros((data_size+1,12))
     temp = np.eye(4,4).reshape(1,16)
-    all_pose[0,:] = temp[0,0:12]
+    all_pose[0,:] = temp[0,0:12]    # start with identity pose
     pose = np.matrix(np.eye(4,4))
     for i in range(0,data_size):
         data_mat = se2SE(data[i,:])
