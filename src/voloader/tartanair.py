@@ -32,13 +32,14 @@ class TartanDataset(Dataset):
         """
         
         self.N = 0
+        self.index_ranges = [0]
         self.data_path = Path(data_path)
         if train:
-            trajectories = list(self.data_path.glob('*/*/*'))
+            self.trajectories = sorted(list(self.data_path.glob('*/*/*')))
         else:
-            trajectories = list(self.data_path.glob('*'))
+            self.trajectories = sorted(list(self.data_path.glob('*')))
         self.combined = combined
-        self.dataset = self._load_data(trajectories, self.combined)
+        self.dataset = self._load_data(self.trajectories, self.combined)
         self.transform = transform
         self.focalx = focalx
         self.focaly = focaly
@@ -51,21 +52,24 @@ class TartanDataset(Dataset):
             trajectories (list): List of paths to trajectories.
             combined (bool): If True, combine all trajectories into common lists.
         Returns:
-            dict: Dictionary containing images, flows, and relative poses from/for each trajectory.
+            dict: Dictionary containing nested dictonaries with images, flows, and relative poses from/for each trajectory.
+                  If combined is True, all trajectories are combined into a single nested dictionary under the key 'combined'.
         """
         
         print("Building TartanAir dataset")
         
         if combined:
-            dataset = {
+            dataset = {'combined':
+                {
                 'images': [],
                 'flows': [],
                 'relposes': []
+                }
             }
         else:
             dataset = {}
 
-        for traj in tqdm(sorted(trajectories)):
+        for traj in tqdm(trajectories):
             images = sorted(traj.glob('image_left/*.png'))
             flows = sorted(traj.glob('flow/*flow.npy'))
 
@@ -82,25 +86,42 @@ class TartanDataset(Dataset):
             assert(len(motions) == len(images)) - 1
 
             if combined:
-                dataset['images'].extend(images)
-                dataset['flows'].extend(flows)
-                dataset['relposes'].extend(motions)
+                dataset['combined']['images'].extend(images)
+                dataset['combined']['flows'].extend(flows)
+                dataset['combined']['relposes'].extend(motions)
             else:
                 dataset[traj] = {'images': images, 'flows': flows, 
                     'relposes': motions}
+                self.index_ranges.append(self.index_ranges[-1] + len(flows))
             self.N += len(flows)
 
+        if not combined:
+            assert self.index_ranges[-1] == self.N, \
+            "The upper index range should match the total number of items in the dataset."
+            self.index_ranges = np.array(self.index_ranges)
+        
         return dataset
     
     def __len__(self):
         return self.N
 
     def __getitem__(self, idx):
-        if not self.combined:
-            raise NotImplementedError("This method is not implemented for non-combined datasets.")
+        if self.combined:
+            traj_name = 'combined'
+            sample_idx = idx
+        else:
+            # If not combined, find the trajectory that contains the index
+            mask = self.index_ranges < idx
+            cummask = np.cumsum(mask)
+            traj_idx = np.argmax(cummask)
+            traj_name = self.trajectories[traj_idx]
+            sample_idx = idx - self.index_ranges[traj_idx]
         
-        imgfile1 = self.dataset['images'][idx]
-        imgfile2 = self.dataset['images'][idx+1]
+        if traj_name not in self.dataset:
+            raise ValueError(f"Trajectory {traj_name} not found in dataset.")
+        
+        imgfile1 = self.dataset[traj_name]['images'][sample_idx]
+        imgfile2 = self.dataset[traj_name]['images'][sample_idx + 1]
         img1 = cv2.imread(imgfile1)
         img2 = cv2.imread(imgfile2)
         
@@ -109,11 +130,11 @@ class TartanDataset(Dataset):
         intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
         res['intrinsic'] = intrinsicLayer  
 
-        flowfile = self.dataset['flows'][idx]
+        flowfile = self.dataset[traj_name]['flows'][sample_idx]
         flow = np.load(flowfile)
         res['flow'] = flow
 
-        res['relpose'] = self.dataset['relposes'][idx]
+        res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
             
         if self.transform:
             res = self.transform(res)
