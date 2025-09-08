@@ -48,7 +48,7 @@ def SE2se(SE_data):
     Args:
         SE_data (numpy.ndarray): A 4x4 transformation matrix.
     Returns:
-        numpy.ndarray: A 6-element vector containing the position and rotation in axis-angle representation.
+        numpy.ndarray: A 6-element vector containing the position and rotation vector.
     """
     result = np.zeros((6))
     result[0:3] = np.array(SE_data[0:3,3].T)
@@ -56,18 +56,18 @@ def SE2se(SE_data):
     return result
 
 def SO2so(SO_data):
-    """Convert a 3x3 rotation matrix to a 3-element vector in axis-angle representation.
+    """Convert a 3x3 rotation matrix to a 3-element rotation vector.
     Args:
         SO_data (numpy.ndarray): A 3x3 rotation matrix.
     Returns:
-        numpy.ndarray: A 3-element vector representing the rotation in axis-angle representation.
+        numpy.ndarray: A 3-element rotation vector.
     """
     return R.from_matrix(SO_data).as_rotvec()
 
 def so2SO(so_data):
     """Convert a 3-element vector in axis-angle representation to a 3x3 rotation matrix.
     Args:
-        so_data (numpy.ndarray): A 3-element vector representing the rotation in axis-angle representation.
+        so_data (numpy.ndarray): A 3-element rotation vector.
     Returns:
         numpy.ndarray: A 3x3 rotation matrix.
     """
@@ -76,7 +76,7 @@ def so2SO(so_data):
 def se2SE(se_data):
     """Convert a 6-element vector to a 4x4 transformation matrix.
     Args:
-        se_data (numpy.ndarray): A 6-element vector containing position and rotation in axis-angle representation.
+        se_data (numpy.ndarray): A 6-element vector containing position and rotation vector.
     Returns:
         numpy.matrix: A 4x4 transformation matrix.
     """
