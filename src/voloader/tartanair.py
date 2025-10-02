@@ -254,6 +254,7 @@ class TartanFlowPoseDataset(Dataset):
 
         flowfile = self.dataset[traj_name]['flows'][sample_idx]
         flow = np.load(flowfile)
+        res = {}
         res['flow'] = flow
 
         res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
