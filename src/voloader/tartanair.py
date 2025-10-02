@@ -141,6 +141,128 @@ class TartanDataset(Dataset):
 
         return res
 
+class TartanFlowPoseDataset(Dataset):
+    def __init__(self, 
+                 data_path: str,
+                 train: bool = True,
+                 combined: bool = True,
+                 transform = None,
+                 focalx = 320.0, 
+                 focaly = 320.0, 
+                 centerx = 320.0, 
+                 centery = 240.0):
+        """TartanAir dataset with only flow and pose.
+        Args:
+            data_path (str): Path to the dataset folder.
+            train (bool): If True, expect TartanAir training directory structure; otherwise, test directory structure.
+            combined (bool): If True, combine all trajectories into common lists; otherwise, keep them separate.
+            transform (callable, optional): A function/transform that takes in a sample and returns a transformed version.
+            focalx (float): Focal length in x direction.
+            focaly (float): Focal length in y direction.
+            centerx (float): X coordinate of the image center.
+            centery (float): Y coordinate of the image center.
+        """
+        
+        self.N = 0
+        self.index_ranges = [0]
+        self.data_path = Path(data_path)
+        if train:
+            self.trajectories = sorted(list(self.data_path.glob('*/*/*')))
+        else:
+            self.trajectories = sorted(list(self.data_path.glob('*')))
+        self.combined = combined
+        self.dataset = self._load_data(self.trajectories, self.combined)
+        self.transform = transform
+        self.focalx = focalx
+        self.focaly = focaly
+        self.centerx = centerx
+        self.centery = centery
+    
+    def _load_data(self, trajectories: list[Path], combined: bool = True) -> dict:
+        """Load data from paths in trajectories list.
+        Args:
+            trajectories (list): List of paths to trajectories.
+            combined (bool): If True, combine all trajectories into common lists.
+        Returns:
+            dict: Dictionary containing nested dictonaries with images, flows, and relative poses from/for each trajectory.
+                  If combined is True, all trajectories are combined into a single nested dictionary under the key 'combined'.
+        """
+        
+        print("Building TartanAir dataset")
+        
+        if combined:
+            dataset = {'combined':
+                {
+                'images': [],
+                'flows': [],
+                'relposes': []
+                }
+            }
+        else:
+            dataset = {}
+
+        for traj in tqdm(trajectories):
+            images = sorted(traj.glob('image_left/*.png'))
+            flows = sorted(traj.glob('flow/*flow.npy'))
+
+            assert len(images) == len(flows) + 1, \
+            "The number of flow files should be one less than the number of image files. " \
+            f"Found {len(images)} images and {len(flows)} flow files in {traj}."
+
+            poselist = np.loadtxt(traj / "pose_left.txt").astype(np.float32)
+            assert(poselist.shape[1]==7) # position + quaternion
+            poses = pos_quats2SEs(poselist)
+            matrix = pose2motion(poses)
+            motions = SEs2ses(matrix).astype(np.float32)
+            # FUTURE: consider normalizing the motions
+            assert(len(motions) == len(images)) - 1
+
+            if combined:
+                dataset['combined']['images'].extend(images)
+                dataset['combined']['flows'].extend(flows)
+                dataset['combined']['relposes'].extend(motions)
+            else:
+                dataset[traj] = {'images': images, 'flows': flows, 
+                    'relposes': motions}
+                self.index_ranges.append(self.index_ranges[-1] + len(flows))
+            self.N += len(flows)
+
+        if not combined:
+            assert self.index_ranges[-1] == self.N, \
+            "The upper index range should match the total number of items in the dataset."
+            self.index_ranges = np.array(self.index_ranges)
+        
+        return dataset
+    
+    def __len__(self):
+        return self.N
+
+    def __getitem__(self, idx):
+        if self.combined:
+            traj_name = 'combined'
+            sample_idx = idx
+        else:
+            # If not combined, find the trajectory that contains the index
+            mask = self.index_ranges < idx
+            cummask = np.cumsum(mask)
+            traj_idx = np.argmax(cummask)
+            traj_name = self.trajectories[traj_idx]
+            sample_idx = idx - self.index_ranges[traj_idx]
+        
+        if traj_name not in self.dataset:
+            raise ValueError(f"Trajectory {traj_name} not found in dataset.")
+
+        flowfile = self.dataset[traj_name]['flows'][sample_idx]
+        flow = np.load(flowfile)
+        res['flow'] = flow
+
+        res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
+            
+        if self.transform:
+            res = self.transform(res)
+
+        return res
+
 class TrajFolderDataset(Dataset):
     """scene flow synthetic dataset. """
 
