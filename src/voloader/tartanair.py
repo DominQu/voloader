@@ -9,6 +9,21 @@ from tqdm import tqdm
 from .transformation import pos_quats2SEs, pose2motion, SEs2ses
 from .utils import make_intrinsics_layer
 
+
+class TrajectoryBatchSampler:
+    def __init__(self, traj_ranges):
+        self.traj_ranges = traj_ranges
+        self.num_traj = len(self.traj_ranges) - 1
+
+    def __iter__(self):
+        order = range(self.num_traj)
+        for k in order:
+            start, end = self.traj_ranges[k], self.traj_ranges[k+1]
+            yield list(range(start, end))
+
+    def __len__(self):
+        return self.num_traj
+
 class TartanDataset(Dataset):
     def __init__(self, 
                  data_path: str,
