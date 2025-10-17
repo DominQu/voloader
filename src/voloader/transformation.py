@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+from scipy.linalg import expm
 
 def line2mat(line_data):
     """Convert a line of data to a 4x4 transformation matrix.
@@ -137,7 +138,61 @@ def ses2poses_quat(data):
         all_pose_quat[i+1,:3] = np.array([pose[0,3], pose[1,3], pose[2,3]])
         all_pose_quat[i+1,3:] = quat      
     return all_pose_quat
+
+# def rotvec2Lieso(data):
+#     """Transform axis-angle vector representation into Lie rotation
+#     R = exp([w])
+#     """
+#     lie_mat = np.zeros((3, 3))
+#     lie_mat[1, 0] = data[2]
+#     lie_mat[0, 1] = -data[2]
+#     lie_mat[0, 2] = data[1]
+#     lie_mat[2, 0] = -data[1]
+#     lie_mat[1, 2] = -data[0]
+#     lie_mat[2, 1] = data[0]
+#     return expm(lie_mat)
+
+def ses2poses_exp(data):
+    """Combine motion into global pose trajectory"""
+    data_size = data.shape[0]
+    all_pose_quat = np.zeros((data_size+1,7))
+    all_pose_quat[0,:] = np.array([0., 0., 0., 0., 0., 0., 1.])
+    pose = np.matrix(np.eye(4,4))
+    for i in range(0,data_size):
+        data_mat = exp_se3(data[i,:])
+        pose = pose*data_mat
+        quat = SO2quat(pose[0:3,0:3])
+        all_pose_quat[i+1,:3] = np.array([pose[0,3], pose[1,3], pose[2,3]])
+        all_pose_quat[i+1,3:] = quat      
+    return all_pose_quat
     
+def skew(v):
+    return np.array([
+        [0, -v[2], v[1]],
+        [v[2], 0, -v[0]],
+        [-v[1], v[0], 0]
+    ])
+
+def exp_se3(xi):
+    rho = xi[:3]
+    phi = xi[3:]
+    theta = np.linalg.norm(phi)
+    if theta < 1e-8:
+        R = np.eye(3)
+        J = np.eye(3)
+    else:
+        A = np.sin(theta)/theta
+        B = (1 - np.cos(theta))/theta**2
+        C = (1 - A)/theta**2
+        w = skew(phi)
+        R = np.eye(3) + A*w + B*w@w
+        J = np.eye(3) + B*w + C*w@w
+    t = J @ rho
+    T = np.eye(4)
+    T[:3,:3] = R
+    T[:3,3] = t
+    return T
+
 def SEs2ses(motion_data):
     data_size = motion_data.shape[0]
     ses = np.zeros((data_size,6))
