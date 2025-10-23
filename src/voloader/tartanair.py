@@ -33,7 +33,8 @@ class TartanDataset(Dataset):
                  focalx = 320.0, 
                  focaly = 320.0, 
                  centerx = 320.0, 
-                 centery = 240.0):
+                 centery = 240.0,
+                 std = None):
         """Base class for TartanAir dataset.
         Args:
             data_path (str): Path to the dataset folder.
@@ -44,6 +45,7 @@ class TartanDataset(Dataset):
             focaly (float): Focal length in y direction.
             centerx (float): X coordinate of the image center.
             centery (float): Y coordinate of the image center.
+            std (list): List with std for each element of motion vector
         """
         
         self.N = 0
@@ -60,6 +62,7 @@ class TartanDataset(Dataset):
         self.focaly = focaly
         self.centerx = centerx
         self.centery = centery
+        self.std = std
     
     def _load_data(self, trajectories: list[Path], combined: bool = True) -> dict:
         """Load data from paths in trajectories list.
@@ -98,6 +101,8 @@ class TartanDataset(Dataset):
             matrix = pose2motion(poses)
             motions = SEs2ses(matrix).astype(np.float32)
             # FUTURE: consider normalizing the motions
+            if self.std is not None:
+                motions = motions / np.array(self.std).reshape((-1, 1))
             assert(len(motions) == len(images)) - 1
 
             if combined:
