@@ -101,7 +101,7 @@ class TartanDataset(Dataset):
             matrix = pose2motion(poses)
             motions = SEs2ses(matrix).astype(np.float32)
             if self.std is not None:
-                motions = motions / np.array(self.std).reshape((-1, 1))
+                motions = motions / np.array(self.std).reshape((1, -1))
             assert(len(motions) == len(images)) - 1
 
             if combined:
@@ -237,7 +237,7 @@ class TartanFlowPoseDataset(Dataset):
             matrix = pose2motion(poses)
             motions = SEs2ses(matrix).astype(np.float32)
             if self.std is not None:
-                motions = motions / np.array(self.std).reshape((-1, 1))
+                motions = motions / np.array(self.std).reshape((1, -1))
             assert(len(motions) == len(images)) - 1
 
             if combined:
