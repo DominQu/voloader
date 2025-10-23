@@ -56,13 +56,13 @@ class TartanDataset(Dataset):
         else:
             self.trajectories = sorted(list(self.data_path.glob('*')))
         self.combined = combined
+        self.std = std
         self.dataset = self._load_data(self.trajectories, self.combined)
         self.transform = transform
         self.focalx = focalx
         self.focaly = focaly
         self.centerx = centerx
         self.centery = centery
-        self.std = std
     
     def _load_data(self, trajectories: list[Path], combined: bool = True) -> dict:
         """Load data from paths in trajectories list.
@@ -192,13 +192,13 @@ class TartanFlowPoseDataset(Dataset):
         else:
             self.trajectories = sorted(list(self.data_path.glob('*')))
         self.combined = combined
+        self.std = std
         self.dataset = self._load_data(self.trajectories, self.combined)
         self.transform = transform
         self.focalx = focalx
         self.focaly = focaly
         self.centerx = centerx
         self.centery = centery
-        self.std = std
     
     def _load_data(self, trajectories: list[Path], combined: bool = True) -> dict:
         """Load data from paths in trajectories list.
