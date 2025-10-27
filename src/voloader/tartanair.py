@@ -160,6 +160,39 @@ class TartanDataset(Dataset):
 
         return res
 
+class TartanImgPoseDataset(TartanDataset):
+    """Tartan dataset providing only images and poses"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def __getitem__(self, idx):
+        if self.combined:
+            traj_name = 'combined'
+            sample_idx = idx
+        else:
+            # If not combined, find the trajectory that contains the index
+            mask = self.index_ranges < idx
+            cummask = np.cumsum(mask)
+            traj_idx = np.argmax(cummask)
+            traj_name = self.trajectories[traj_idx]
+            sample_idx = idx - self.index_ranges[traj_idx]
+        
+        if traj_name not in self.dataset:
+            raise ValueError(f"Trajectory {traj_name} not found in dataset.")
+        
+        imgfile1 = self.dataset[traj_name]['images'][sample_idx]
+        imgfile2 = self.dataset[traj_name]['images'][sample_idx + 1]
+        img1 = cv2.imread(imgfile1)
+        img2 = cv2.imread(imgfile2)
+        
+        res = {'img': np.concat([img1, img2], axis=-1)}
+
+        res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
+            
+        if self.transform:
+            res = self.transform(res)
+
+        return res
+
 class TartanFlowPoseDataset(Dataset):
     def __init__(self, 
                  data_path: str,
