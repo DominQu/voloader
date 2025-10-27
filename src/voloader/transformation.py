@@ -178,7 +178,7 @@ def exp_se3(xi):
     phi = xi[3:]
     theta = np.linalg.norm(phi)
     # Clip the angle to its allowed values
-    theta = np.clip(theta, [0, np.pi])
+    theta = np.clip(theta, 0, np.pi)
     if theta < 1e-8:
         R = np.eye(3)
         J = np.eye(3)
