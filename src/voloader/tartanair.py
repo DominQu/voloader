@@ -189,8 +189,7 @@ class TartanImgPoseDataset(TartanDataset):
         res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
             
         if self.transform:
-            res = self.transform(res)
-
+            res['img'] = self.transform(res['img'])
         return res
 
 class TartanFlowPoseDataset(Dataset):
