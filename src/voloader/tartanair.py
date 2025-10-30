@@ -111,7 +111,7 @@ class TartanDataset(Dataset):
                 dataset['combined']['relposes'].extend(motions)
             else:
                 dataset[traj] = {'images': images, 'flows': flows, 
-                    'relposes': torch.tensor(motions, dtype=torch.float32)}
+                    'relposes': motions}
                 self.index_ranges.append(self.index_ranges[-1] + len(flows))
             self.N += len(flows)
 
@@ -154,7 +154,7 @@ class TartanDataset(Dataset):
         flow = np.load(flowfile)
         res['flow'] = flow
 
-        res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
+        res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
             
         if self.transform:
             res = self.transform(res)
@@ -187,7 +187,7 @@ class TartanImgPoseDataset(TartanDataset):
         
         res = {'img': np.concat([img1, img2], axis=-1)}
 
-        res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
+        res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
             
         if self.transform:
             res['img'] = self.transform(res['img'])
