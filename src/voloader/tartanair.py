@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 from torch.utils.data import Dataset
+import torch
 
 from os import listdir
 from pathlib import Path
@@ -110,7 +111,7 @@ class TartanDataset(Dataset):
                 dataset['combined']['relposes'].extend(motions)
             else:
                 dataset[traj] = {'images': images, 'flows': flows, 
-                    'relposes': motions}
+                    'relposes': torch.tensor(motions, dtype=torch.float32)}
                 self.index_ranges.append(self.index_ranges[-1] + len(flows))
             self.N += len(flows)
 
