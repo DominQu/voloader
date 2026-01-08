@@ -154,10 +154,10 @@ class TartanDataset(Dataset):
         flow = np.load(flowfile)
         res['flow'] = flow
 
-        res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
-            
         if self.transform:
             res = self.transform(res)
+        res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
+            
 
         return res
 
@@ -189,7 +189,7 @@ class TartanImgPoseDataset(TartanDataset):
 
         res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
             
-        if self.transform:
+        if self.transform is not None:
             res['img'] = self.transform(res['img'])
         return res
 
