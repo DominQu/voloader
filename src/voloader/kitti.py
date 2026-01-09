@@ -36,6 +36,8 @@ class KITTIOdometryDataset(Dataset):
 
         if sequences is None:
             sequences = sorted([p.name for p in self.seq_path.iterdir() if p.is_dir()])
+        else:
+            sequences = [str(seq) for seq in sequences]
 
         self.sequences = sequences
         self.combined = combined
