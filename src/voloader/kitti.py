@@ -14,7 +14,7 @@ class KITTIOdometryDataset(Dataset):
                  data_path: str,
                  sequences=None,
                  train: bool = True,
-                 combined: bool = True,
+                 combined: bool = False,
                  transform=None,
                  std=None):
         """KITTI Odometry Dataset.
@@ -122,14 +122,15 @@ class KITTIOdometryDataset(Dataset):
             # seq_name = self.sequences[traj_idx]
             # sample_idx = idx - self.index_ranges[traj_idx]
             # If not combined, find the trajectory that contains the index
-            mask = self.index_ranges < idx
+            mask = self.index_ranges <= idx
             cummask = np.cumsum(mask)
             traj_idx = np.argmax(cummask)
             seq_name = self.sequences[traj_idx]
             sample_idx = idx - self.index_ranges[traj_idx]
 
+
         imgfile1 = self.dataset[seq_name]["images"][sample_idx]
-        imgfile2 = self.dataset[seq_name]["images"][sample_idx + 1]
+        imgfile2 = self.dataset[seq_name]["images"][sample_idx + 1] # This will work for last frames, because sample_idx will always be one less than the number of images
 
         img1 = cv2.imread(str(imgfile1))
         img2 = cv2.imread(str(imgfile2))
