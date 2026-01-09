@@ -118,7 +118,13 @@ class KITTIOdometryDataset(Dataset):
             seq_name = "combined"
             sample_idx = idx
         else:
-            traj_idx = np.searchsorted(self.index_ranges, idx, side="right") - 1
+            # traj_idx = np.searchsorted(self.index_ranges, idx, side="right") - 1
+            # seq_name = self.sequences[traj_idx]
+            # sample_idx = idx - self.index_ranges[traj_idx]
+            # If not combined, find the trajectory that contains the index
+            mask = self.index_ranges < idx
+            cummask = np.cumsum(mask)
+            traj_idx = np.argmax(cummask)
             seq_name = self.sequences[traj_idx]
             sample_idx = idx - self.index_ranges[traj_idx]
 
