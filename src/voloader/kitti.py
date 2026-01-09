@@ -5,8 +5,8 @@ import torch
 import cv2
 from tqdm import tqdm
 
-from .utils import make_intrinsics_layer
-from .transformation import SEs2ses
+from .utils import make_intrinsics_layer, dataset_intrinsics
+from .transformation import SEs2ses, pose2motion
 
 
 class KITTIOdometryDataset(Dataset):
@@ -16,10 +16,6 @@ class KITTIOdometryDataset(Dataset):
                  train: bool = True,
                  combined: bool = True,
                  transform=None,
-                 focalx=718.856,
-                 focaly=718.856,
-                 centerx=607.1928,
-                 centery=185.2157,
                  std=None):
         """KITTI Odometry Dataset.
 
@@ -29,7 +25,6 @@ class KITTIOdometryDataset(Dataset):
             train (bool): Unused, for API compatibility.
             combined (bool): Combine all sequences or keep separate.
             transform (callable): Optional transform.
-            focalx, focaly, centerx, centery: Camera intrinsics.
             std (list): Optional normalization for motion vector.
         """
 
@@ -47,11 +42,7 @@ class KITTIOdometryDataset(Dataset):
         self.transform = transform
         self.std = std
 
-        self.focalx = focalx
-        self.focaly = focaly
-        self.centerx = centerx
-        self.centery = centery
-
+        self.focalx, self.focaly, self.centerx, self.centery = dataset_intrinsics(dataset='kitti')
 
         self.dataset = self._load_data()
 
@@ -74,41 +65,42 @@ class KITTIOdometryDataset(Dataset):
 
             pose_file = self.pose_path / f"{seq}.txt"
             poses = np.loadtxt(pose_file).reshape(-1, 3, 4).astype(np.float32)
-
+            matrix = pose2motion(poses)
+            motions = SEs2ses(matrix).astype(np.float32)
             # Convert to 4x4
-            poses_4x4 = np.zeros((poses.shape[0], 4, 4), dtype=np.float32)
-            poses_4x4[:, :3, :4] = poses
-            poses_4x4[:, 3, 3] = 1.0
+            # poses_4x4 = np.zeros((poses.shape[0], 4, 4), dtype=np.float32)
+            # poses_4x4[:, :3, :4] = poses
+            # poses_4x4[:, 3, 3] = 1.0
 
-            # Relative motions
-            relposes = []
-            for i in range(len(poses_4x4) - 1):
-                T1 = poses_4x4[i]
-                T2 = poses_4x4[i + 1]
-                rel = np.linalg.inv(T1) @ T2
-                relposes.append(rel)
+            # # Relative motions
+            # relposes = []
+            # for i in range(len(poses_4x4) - 1):
+            #     T1 = poses_4x4[i]
+            #     T2 = poses_4x4[i + 1]
+            #     rel = np.linalg.inv(T1) @ T2
+            #     relposes.append(rel)
 
-            relposes = np.stack(relposes)
+            # relposes = np.stack(relposes)
 
-            # Convert SE(3) -> se(3)
-            relposes = SEs2ses(relposes).astype(np.float32)
+            # # Convert SE(3) -> se(3)
+            # relposes = SEs2ses(relposes).astype(np.float32)
 
             if self.std is not None:
-                relposes /= np.array(self.std).reshape(1, -1)
+                motions /= np.array(self.std).reshape(1, -1)
 
-            assert len(images) == len(relposes) + 1
+            assert len(images) == len(motions) + 1
 
             if self.combined:
                 dataset["combined"]["images"].extend(images)
-                dataset["combined"]["relposes"].extend(relposes)
+                dataset["combined"]["relposes"].extend(motions)
             else:
                 dataset[seq] = {
                     "images": images,
-                    "relposes": relposes,
+                    "relposes": motions,
                 }
-                self.index_ranges.append(self.index_ranges[-1] + len(relposes))
+                self.index_ranges.append(self.index_ranges[-1] + len(motions))
 
-            self.N += len(relposes)
+            self.N += len(motions)
 
         if not self.combined:
             self.index_ranges = np.array(self.index_ranges)
