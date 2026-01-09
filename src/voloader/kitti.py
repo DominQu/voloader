@@ -135,7 +135,7 @@ class KITTIOdometryDataset(Dataset):
 
         res = {
             "img": np.concat([img1, img2], axis=-1),
-            "intrinsic": intrinsic,
+            # "intrinsic": intrinsic,
             "relpose": torch.tensor(
                 self.dataset[seq_name]["relposes"][sample_idx],
                 dtype=torch.float32,
