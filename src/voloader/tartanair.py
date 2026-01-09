@@ -167,11 +167,12 @@ class TartanImgPoseDataset(TartanDataset):
         super().__init__(*args, **kwargs)
     def __getitem__(self, idx):
         if self.combined:
-            traj_name = 'combined'
-            sample_idx = idx
+            raise ValueError("Combined mode not supported for image dataset")
+            # traj_name = 'combined'
+            # sample_idx = idx
         else:
             # If not combined, find the trajectory that contains the index
-            mask = self.index_ranges < idx
+            mask = self.index_ranges <= idx
             cummask = np.cumsum(mask)
             traj_idx = np.argmax(cummask)
             traj_name = self.trajectories[traj_idx]
