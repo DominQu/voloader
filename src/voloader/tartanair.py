@@ -96,21 +96,25 @@ class TartanDataset(Dataset):
 
         for traj in tqdm(trajectories):
             images = sorted(traj.glob('image_left/*.png'))
-            flows = sorted(traj.glob('flow/*flow.npy'))
-
-            assert len(images) == len(flows) + 1, \
-            "The number of flow files should be one less than the number of image files. " \
-            f"Found {len(images)} images and {len(flows)} flow files in {traj}."
             # Make images the same len as flows by combining paths that are following each other
             images = [[images[i], images[i+1]] for i in range(len(images)-1)]
+            flows = sorted(traj.glob('flow/*flow.npy'))
+
+            assert len(images) == len(flows), \
+            "The number of image pairs should be equal to number of flows. " \
+            f"Found {len(images)} image pairs and {len(flows)} flow files in {traj}."
+            
             poselist = np.loadtxt(traj / "pose_left.txt").astype(np.float32)
             assert(poselist.shape[1]==7) # position + quaternion
+            
             poses = pos_quats2SEs(poselist)
             matrix = pose2motion(poses)
             motions = SEs2ses(matrix).astype(np.float32)
             if self.std is not None:
                 motions = motions / np.array(self.std).reshape((1, -1))
-            assert(len(motions) == len(images)) - 1
+
+            assert(len(motions) == len(images)), \
+            "The number of relative poses should be equal to the number of image pairs"
 
             if combined:
                 dataset['combined']['images'].extend(images)
