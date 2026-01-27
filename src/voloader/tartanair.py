@@ -114,7 +114,9 @@ class TartanDataset(Dataset):
                 motions = motions / np.array(self.std).reshape((1, -1))
 
             assert(len(motions) == len(images)), \
-            "The number of relative poses should be equal to the number of image pairs"
+            "The number of relative poses should be equal to the number of image pairs. " \
+            f"Found {len(images)} image pairs and {len(motions)} relative poses {traj}."
+            
 
             if combined:
                 dataset['combined']['images'].extend(images)
