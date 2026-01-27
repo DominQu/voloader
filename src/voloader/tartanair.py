@@ -315,7 +315,9 @@ class TartanFlowPoseDataset(Dataset):
         res['flow'] = flow
 
         res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
-            
+        h, w, _ = flow.shape
+        intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
+        res['intrinsic'] = intrinsicLayer 
         if self.transform:
             res = self.transform(res)
 
