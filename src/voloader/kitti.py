@@ -69,23 +69,6 @@ class KITTIOdometryDataset(Dataset):
             poses = np.loadtxt(pose_file).reshape(-1, 3, 4).astype(np.float32)
             matrix = pose2motion(poses)
             motions = SEs2ses(matrix).astype(np.float32)
-            # Convert to 4x4
-            # poses_4x4 = np.zeros((poses.shape[0], 4, 4), dtype=np.float32)
-            # poses_4x4[:, :3, :4] = poses
-            # poses_4x4[:, 3, 3] = 1.0
-
-            # # Relative motions
-            # relposes = []
-            # for i in range(len(poses_4x4) - 1):
-            #     T1 = poses_4x4[i]
-            #     T2 = poses_4x4[i + 1]
-            #     rel = np.linalg.inv(T1) @ T2
-            #     relposes.append(rel)
-
-            # relposes = np.stack(relposes)
-
-            # # Convert SE(3) -> se(3)
-            # relposes = SEs2ses(relposes).astype(np.float32)
 
             if self.std is not None:
                 motions /= np.array(self.std).reshape(1, -1)
