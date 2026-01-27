@@ -101,7 +101,8 @@ class TartanDataset(Dataset):
             assert len(images) == len(flows) + 1, \
             "The number of flow files should be one less than the number of image files. " \
             f"Found {len(images)} images and {len(flows)} flow files in {traj}."
-
+            # Make images the same len as flows by combining paths that are following each other
+            images = [[images[i], images[i+1]] for i in range(len(images)-1)]
             poselist = np.loadtxt(traj / "pose_left.txt").astype(np.float32)
             assert(poselist.shape[1]==7) # position + quaternion
             poses = pos_quats2SEs(poselist)
@@ -147,8 +148,8 @@ class TartanDataset(Dataset):
             raise ValueError(f"Trajectory {traj_name} not found in dataset.")
         res = {}
         if self.modality in ["all", "img"]:
-            imgfile1 = self.dataset[traj_name]['images'][sample_idx]
-            imgfile2 = self.dataset[traj_name]['images'][sample_idx + 1]
+            imgfile1 = self.dataset[traj_name]['images'][sample_idx][0]
+            imgfile2 = self.dataset[traj_name]['images'][sample_idx][1]
             img1 = cv2.imread(imgfile1)
             img2 = cv2.imread(imgfile2)
             res['img1'] = img1
