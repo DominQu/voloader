@@ -31,6 +31,7 @@ class TartanDataset(Dataset):
                  train: bool = True,
                  combined: bool = True,
                  transform = None,
+                 modality = "all",
                  focalx = 320.0, 
                  focaly = 320.0, 
                  centerx = 320.0, 
@@ -42,6 +43,7 @@ class TartanDataset(Dataset):
             train (bool): If True, expect TartanAir training directory structure; otherwise, test directory structure.
             combined (bool): If True, combine all trajectories into common lists; otherwise, keep them separate.
             transform (callable, optional): A function/transform that takes in a sample and returns a transformed version.
+            modality (str): Type of data to load. One of: all, img, flow.
             focalx (float): Focal length in x direction.
             focaly (float): Focal length in y direction.
             centerx (float): X coordinate of the image center.
@@ -60,6 +62,10 @@ class TartanDataset(Dataset):
         self.std = std
         self.dataset = self._load_data(self.trajectories, self.combined)
         self.transform = transform
+        if modality not in ["all", "img", "flow"]:
+            raise ValueError(f"Provided modality: {modality} not supported.")
+        self.modality = modality
+
         self.focalx = focalx
         self.focaly = focaly
         self.centerx = centerx
@@ -139,93 +145,98 @@ class TartanDataset(Dataset):
         
         if traj_name not in self.dataset:
             raise ValueError(f"Trajectory {traj_name} not found in dataset.")
-        
-        imgfile1 = self.dataset[traj_name]['images'][sample_idx]
-        imgfile2 = self.dataset[traj_name]['images'][sample_idx + 1]
-        img1 = cv2.imread(imgfile1)
-        img2 = cv2.imread(imgfile2)
-        
-        res = {'img1': img1, 'img2': img2}
-        h, w, _ = img1.shape
-        intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
-        res['intrinsic'] = intrinsicLayer  
-
-        flowfile = self.dataset[traj_name]['flows'][sample_idx]
-        flow = np.load(flowfile)
-        res['flow'] = flow
-
-        if self.transform:
-            res = self.transform(res)
-        res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
-            
-
-        return res
-
-class TartanImgPoseDataset(TartanDataset):
-    """Tartan dataset providing only images and poses"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-    def __getitem__(self, idx):
-        if self.combined:
-            raise ValueError("Combined mode not supported for image dataset")
-            # traj_name = 'combined'
-            # sample_idx = idx
-        else:
-            # If not combined, find the trajectory that contains the index
-            mask = self.index_ranges <= idx
-            cummask = np.cumsum(mask)
-            traj_idx = np.argmax(cummask)
-            traj_name = self.trajectories[traj_idx]
-            sample_idx = idx - self.index_ranges[traj_idx]
-        
-        if traj_name not in self.dataset:
-            raise ValueError(f"Trajectory {traj_name} not found in dataset.")
-        
-        imgfile1 = self.dataset[traj_name]['images'][sample_idx]
-        imgfile2 = self.dataset[traj_name]['images'][sample_idx + 1]
-        img1 = cv2.imread(imgfile1)
-        img2 = cv2.imread(imgfile2)
-        
-        res = {'img': np.concat([img1, img2], axis=-1)}
-
-        res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
-            
-        if self.transform is not None:
-            res['img'] = self.transform(res['img'])
-        return res
-
-class TartanFlowPoseDataset(TartanDataset):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def __getitem__(self, idx):
-        if self.combined:
-            traj_name = 'combined'
-            sample_idx = idx
-        else:
-            # If not combined, find the trajectory that contains the index
-            mask = self.index_ranges < idx
-            cummask = np.cumsum(mask)
-            traj_idx = np.argmax(cummask)
-            traj_name = self.trajectories[traj_idx]
-            sample_idx = idx - self.index_ranges[traj_idx]
-        
-        if traj_name not in self.dataset:
-            raise ValueError(f"Trajectory {traj_name} not found in dataset.")
-
-        flowfile = self.dataset[traj_name]['flows'][sample_idx]
-        flow = np.load(flowfile)
         res = {}
-        res['flow'] = flow
+        if self.modality in ["all", "img"]:
+            imgfile1 = self.dataset[traj_name]['images'][sample_idx]
+            imgfile2 = self.dataset[traj_name]['images'][sample_idx + 1]
+            img1 = cv2.imread(imgfile1)
+            img2 = cv2.imread(imgfile2)
+            res['img1'] = img1
+            res['img2'] = img2
+            h, w, _ = img1.shape
+            intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
+            res['intrinsic'] = intrinsicLayer  
+        if self.modality in ["all", "flow"]:
+            flowfile = self.dataset[traj_name]['flows'][sample_idx]
+            flow = np.load(flowfile)
+            res['flow'] = flow
+            # Add intrinsic layer for flow modality
+            if not "intrinsic" in list(res.keys()):
+                h, w, _ = flow.shape
+                intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
+                res['intrinsic'] = intrinsicLayer 
 
-        res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
-        h, w, _ = flow.shape
-        intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
-        res['intrinsic'] = intrinsicLayer 
         if self.transform:
             res = self.transform(res)
-
+        res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
+            
         return res
+
+# class TartanImgPoseDataset(TartanDataset):
+#     """Tartan dataset providing only images and poses"""
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#     def __getitem__(self, idx):
+#         if self.combined:
+#             raise ValueError("Combined mode not supported for image dataset")
+#             # traj_name = 'combined'
+#             # sample_idx = idx
+#         else:
+#             # If not combined, find the trajectory that contains the index
+#             mask = self.index_ranges <= idx
+#             cummask = np.cumsum(mask)
+#             traj_idx = np.argmax(cummask)
+#             traj_name = self.trajectories[traj_idx]
+#             sample_idx = idx - self.index_ranges[traj_idx]
+        
+#         if traj_name not in self.dataset:
+#             raise ValueError(f"Trajectory {traj_name} not found in dataset.")
+        
+#         imgfile1 = self.dataset[traj_name]['images'][sample_idx]
+#         imgfile2 = self.dataset[traj_name]['images'][sample_idx + 1]
+#         img1 = cv2.imread(imgfile1)
+#         img2 = cv2.imread(imgfile2)
+        
+#         res = {'img': np.concat([img1, img2], axis=-1)}
+
+#         res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
+            
+#         if self.transform is not None:
+#             res['img'] = self.transform(res['img'])
+#         return res
+
+# class TartanFlowPoseDataset(TartanDataset):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+
+#     def __getitem__(self, idx):
+#         if self.combined:
+#             traj_name = 'combined'
+#             sample_idx = idx
+#         else:
+#             # If not combined, find the trajectory that contains the index
+#             mask = self.index_ranges < idx
+#             cummask = np.cumsum(mask)
+#             traj_idx = np.argmax(cummask)
+#             traj_name = self.trajectories[traj_idx]
+#             sample_idx = idx - self.index_ranges[traj_idx]
+        
+#         if traj_name not in self.dataset:
+#             raise ValueError(f"Trajectory {traj_name} not found in dataset.")
+
+#         flowfile = self.dataset[traj_name]['flows'][sample_idx]
+#         flow = np.load(flowfile)
+#         res = {}
+#         res['flow'] = flow
+
+#         res['relpose'] = self.dataset[traj_name]['relposes'][sample_idx]
+#         h, w, _ = flow.shape
+#         intrinsicLayer = make_intrinsics_layer(w, h, self.focalx, self.focaly, self.centerx, self.centery)
+#         res['intrinsic'] = intrinsicLayer 
+#         if self.transform:
+#             res = self.transform(res)
+
+#         return res
 
 class TrajFolderDataset(Dataset):
     """scene flow synthetic dataset. """
