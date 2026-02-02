@@ -98,12 +98,17 @@ class TartanDataset(Dataset):
             images = sorted(traj.glob('image_left/*.png'))
             # Make images the same len as flows by combining paths that are following each other
             images = [[images[i], images[i+1]] for i in range(len(images)-1)]
-            flows = sorted(traj.glob('flow/*flow.npy'))
-
-            assert len(images) == len(flows), \
-            "The number of image pairs should be equal to number of flows. " \
-            f"Found {len(images)} image pairs and {len(flows)} flow files in {traj}."
             
+            if Path(traj / "flow").is_dir():
+                flows = sorted(traj.glob('flow/*flow.npy'))
+
+                assert len(images) == len(flows), \
+                "The number of image pairs should be equal to number of flows. " \
+                f"Found {len(images)} image pairs and {len(flows)} flow files in {traj}."
+            else:
+                print(f"Didn't find any flow for trajectory {traj}")
+                flows = None
+
             poselist = np.loadtxt(traj / "pose_left.txt").astype(np.float32)
             assert(poselist.shape[1]==7) # position + quaternion
             
@@ -120,13 +125,17 @@ class TartanDataset(Dataset):
 
             if combined:
                 dataset['combined']['images'].extend(images)
-                dataset['combined']['flows'].extend(flows)
                 dataset['combined']['relposes'].extend(motions)
+                if flows is not None:
+                    dataset['combined']['flows'].extend(flows)
             else:
-                dataset[traj] = {'images': images, 'flows': flows, 
-                    'relposes': motions}
-                self.index_ranges.append(self.index_ranges[-1] + len(flows))
-            self.N += len(flows)
+                dataset[traj] = {'images': images, 
+                                 'relposes': motions}
+                if flows is not None:
+                    dataset[traj]['flows'] = flows
+                self.index_ranges.append(self.index_ranges[-1] + len(images))
+            
+            self.N += len(images)
 
         if not combined:
             assert self.index_ranges[-1] == self.N, \
