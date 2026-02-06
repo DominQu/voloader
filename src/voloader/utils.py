@@ -56,6 +56,23 @@ class DownscaleFlow(object):
             sample['fmask'] = cv2.resize(sample['fmask'],
                 (0, 0), fx=self.downscale, fy=self.downscale, interpolation=cv2.INTER_LINEAR)
         return sample
+    
+class NormalizeFlow(object):
+    """
+    Normalize flow based on height and width of the image
+
+    """
+    def __init__(self):
+        pass
+
+    def __call__(self, sample): 
+        if 'flow' in sample:
+            data = sample['flow'] 
+            h, w = data.shape[0], data.shape[1]
+            data[:,:,0] = data[:, :, 0] / w
+            data[:, :, 1] = data[:, :, 1] / h
+            sample['flow'] = data
+        return sample
 
 class CropCenter(object):
     """Crops the a sample of data (tuple) at center
