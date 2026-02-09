@@ -74,6 +74,17 @@ class NormalizeFlow(object):
             sample['flow'] = data
         return sample
 
+def NormalizeTrans(object):
+    """Normalize translation part of GT motion"""
+    def __init__(self):
+        self.eps = 1e-6
+    def __call__(self, sample):
+        if 'relpose' in sample:
+            motion = sample['relpose']
+            motion[:3] = motion[:3] / (np.linalg.norm(motion[:3]) + self.eps)
+            sample['relpose'] = motion
+        return sample
+
 class CropCenter(object):
     """Crops the a sample of data (tuple) at center
     if the image size is not large enough, it will be first resized with fixed ratio
