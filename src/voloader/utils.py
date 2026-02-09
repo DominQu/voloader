@@ -74,7 +74,7 @@ class NormalizeFlow(object):
             sample['flow'] = data
         return sample
 
-def NormalizeTrans(object):
+class NormalizeTrans(object):
     """Normalize translation part of GT motion"""
     def __init__(self):
         self.eps = 1e-6
