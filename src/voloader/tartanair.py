@@ -58,6 +58,7 @@ class TartanDataset(Dataset):
             self.trajectories = sorted(list(self.data_path.glob('*/*/*')))
         else:
             self.trajectories = sorted(list(self.data_path.glob('*')))
+        print(f"Found {len(self.trajectories)} trajectories.")
         self.combined = combined
         self.std = std
         self.dataset = self._load_data(self.trajectories, self.combined)
