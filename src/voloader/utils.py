@@ -1,12 +1,11 @@
 from __future__ import division
 import torch
+from torchvision.transforms import v2
 import math
-import random
 import numpy as np
 import numbers
 import cv2
 import matplotlib.pyplot as plt
-import os
 import time
 # ===== general functions =====
 
@@ -30,6 +29,35 @@ class Compose(object):
         for t in self.transforms:
             img = t(img)
         return img
+
+
+class ResizeScaleFlowTensor:
+    """
+    Resize the flow, mask and intrinsics tensors to a fixed size.
+    If scale is given, then scale flow.
+
+    """
+    def __init__(self, dsize: tuple, scale: float = 1.0):
+        """
+        Args:
+            dsize: output frame size, this should be NO LARGER than the input frame size!
+            scale: down scaling factor applied to flow. flow = flow / scale
+        """
+        self.resize = v2.Resize(dsize)
+        self.scale = scale
+
+    def __call__(self, sample): 
+        if 'flow' in sample:
+            sample['flow'] = self.resize(sample['flow']) 
+            if self.scale != 1.0:
+                sample['flow'] = sample['flow'] / torch.tensor((self.scale))
+
+        if 'intrinsic' in sample:
+            sample['intrinsic'] = self.resize(sample['intrinsic'])
+
+        if 'fmask' in sample:
+            sample['fmask'] = self.resize(sample['fmask'])
+        return sample
 
 
 class DownscaleFlow(object):
@@ -56,34 +84,7 @@ class DownscaleFlow(object):
             sample['fmask'] = cv2.resize(sample['fmask'],
                 (0, 0), fx=self.downscale, fy=self.downscale, interpolation=cv2.INTER_LINEAR)
         return sample
-    
-class NormalizeFlow(object):
-    """
-    Normalize flow based on height and width of the image
 
-    """
-    def __init__(self):
-        pass
-
-    def __call__(self, sample): 
-        if 'flow' in sample:
-            data = sample['flow'] 
-            h, w = data.shape[0], data.shape[1]
-            data[:,:,0] = data[:, :, 0] / w
-            data[:, :, 1] = data[:, :, 1] / h
-            sample['flow'] = data
-        return sample
-
-class NormalizeTrans(object):
-    """Normalize translation part of GT motion"""
-    def __init__(self):
-        self.eps = 1e-6
-    def __call__(self, sample):
-        if 'relpose' in sample:
-            motion = sample['relpose']
-            motion[:3] = motion[:3] / (np.linalg.norm(motion[:3]) + self.eps)
-            sample['relpose'] = motion
-        return sample
 
 class CropCenter(object):
     """Crops the a sample of data (tuple) at center
@@ -131,6 +132,30 @@ class CropCenter(object):
                 sample[kk] = img[y1:y1+th,x1:x1+tw]
 
         return sample
+
+
+class RandomCropResizeTensor:
+    """Perform random crop and resize transform"""
+    def __init__(self, size: tuple = (448, 640), scale: tuple = (0.16, 1.0), ratio: tuple = (1.3, 1.55)):
+        """
+        Args:
+            size: target size after resizing
+            scale: upper and lower bounds of area scale
+            ratio: upper and lower bounds of random aspect ratio, before resizing
+        """
+        self.t = v2.RandomResizedCrop(size, scale, ratio)
+
+    def __call__(self, sample):
+        kks = list(sample)
+
+        for kk in kks:
+            data = sample[kk]
+            # Apply transform to image-like data
+            if len(data.shape) == 3:
+                data = self.t(data)
+                sample[kk] = data
+        return sample
+
 
 class AsChannelFirstTensor(object):
     """Convert a sample of data (tuple) to torch tensor with channel at first dimension."""
