@@ -186,7 +186,7 @@ class TartanDataset(Dataset):
         if self.transform:
             res = self.transform(res)
         res['relpose'] = torch.tensor(self.dataset[traj_name]['relposes'][sample_idx], dtype=torch.float32)
-        res['traj'] = [str(traj_name)]
+        res['traj'] = [f"{traj_name}_{idx}"]
         return res
 
 # class TartanImgPoseDataset(TartanDataset):
