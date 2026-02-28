@@ -1,6 +1,7 @@
 from __future__ import division
 import torch
 from torchvision.transforms import v2
+import torchvision.transforms.functional as TF
 import math
 import numpy as np
 import numbers
@@ -44,11 +45,16 @@ class ResizeScaleFlowTensor:
             scale: down scaling factor applied to flow. flow = flow / scale
         """
         self.resize = v2.Resize(dsize)
+        self.dsize = torch.tensor(dsize)
         self.scale = scale
 
     def __call__(self, sample): 
         if 'flow' in sample:
+            flow_align = self.dsize / torch.tensor(sample['flow'].shape[1:])
             sample['flow'] = self.resize(sample['flow']) 
+            sample['flow'][0] = sample['flow'][0] * flow_align[0]
+            sample['flow'][1] = sample['flow'][1] * flow_align[1]
+
             if self.scale != 1.0:
                 sample['flow'] = sample['flow'] / torch.tensor((self.scale))
 
@@ -143,19 +149,60 @@ class RandomCropResizeTensor:
             scale: upper and lower bounds of area scale
             ratio: upper and lower bounds of random aspect ratio, before resizing
         """
-        self.t = v2.RandomResizedCrop(size, scale, ratio)
+        self.size = size
+        self.scale = scale
+        self.ratio = ratio
 
     def __call__(self, sample):
-        kks = list(sample)
 
-        for kk in kks:
-            data = sample[kk]
-            # Apply transform to image-like data
-            if len(data.shape) == 3:
-                data = self.t(data)
-                sample[kk] = data
+        # Pick a reference tensor (e.g., img1)
+        ref = None
+        for v in sample.values():
+            if torch.is_tensor(v) and v.ndim == 3:
+                ref = v
+                break
+
+        if ref is None:
+            return sample
+
+        # Sample crop parameters ONCE
+        i, j, h, w = v2.RandomResizedCrop.get_params(
+            ref, scale=self.scale, ratio=self.ratio
+        )
+
+        H_out, W_out = self.size
+
+        for k, data in sample.items():
+
+            if not torch.is_tensor(data):
+                continue
+
+            if data.ndim != 3:
+                continue
+
+            # Special handling for flow
+            if k == "flow":
+                # Crop
+                data = TF.crop(data, i, j, h, w)
+
+                # Resize
+                data = TF.resize(data, self.size)
+
+                # IMPORTANT: scale flow vectors
+                scale_x = W_out / w
+                scale_y = H_out / h
+
+                data[0] *= scale_x
+                data[1] *= scale_y
+
+            else:
+                # Normal image-like tensor
+                data = TF.resized_crop(
+                    data, i, j, h, w, self.size
+                )
+
+            sample[k] = data
         return sample
-
 
 class AsChannelFirstTensor(object):
     """Convert a sample of data (tuple) to torch tensor with channel at first dimension."""
