@@ -50,10 +50,7 @@ class ResizeScaleFlowTensor:
 
     def __call__(self, sample): 
         if 'flow' in sample:
-            flow_align = self.dsize / torch.tensor(sample['flow'].shape[1:])
             sample['flow'] = self.resize(sample['flow']) 
-            sample['flow'][0] = sample['flow'][0] * flow_align[0]
-            sample['flow'][1] = sample['flow'][1] * flow_align[1]
 
             if self.scale != 1.0:
                 sample['flow'] = sample['flow'] / torch.tensor((self.scale))
@@ -63,6 +60,7 @@ class ResizeScaleFlowTensor:
 
         if 'fmask' in sample:
             sample['fmask'] = self.resize(sample['fmask'])
+
         return sample
 
 
