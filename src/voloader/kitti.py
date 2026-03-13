@@ -13,16 +13,15 @@ class KITTIOdometryDataset(Dataset):
     def __init__(self,
                  data_path: str,
                  sequences=None,
-                 train: bool = True,
                  combined: bool = False,
                  transform=None,
-                 std=None):
+                 std=None,
+                 **kwargs):
         """KITTI Odometry Dataset.
 
         Args:
             data_path (str): Root KITTI odometry directory.
             sequences (list[str]): Sequence IDs (e.g. ["00", "01"]). If None, use all.
-            train (bool): Unused, for API compatibility.
             combined (bool): Combine all sequences or keep separate.
             transform (callable): Optional transform.
             std (list): Optional normalization for motion vector.
@@ -56,6 +55,7 @@ class KITTIOdometryDataset(Dataset):
                 "combined": {
                     "images": [],
                     "relposes": [],
+                    "flows": []
                 }
             }
         else:
@@ -64,6 +64,17 @@ class KITTIOdometryDataset(Dataset):
         for seq in tqdm(self.sequences):
             seq_dir = self.seq_path / seq / "image_2"
             images = sorted(seq_dir.glob("*.png"))
+            
+            flow_dir = self.seq_path / seq / "pred_flow"
+            if Path(flow_dir).is_dir():
+                flows = sorted(flow_dir.glob('*flow.npy'))
+
+                assert len(images)-1 == len(flows), \
+                "The number of image pairs should be equal to number of flows. " \
+                f"Found {len(images)} image pairs and {len(flows)} flow files in {flow_dir}."
+            else:
+                print(f"Didn't find any flow for trajectory {flow_dir}")
+                flows = None
 
             pose_file = self.pose_path / f"{seq}.txt"
             poses = np.loadtxt(pose_file).reshape(-1, 3, 4).astype(np.float32)
@@ -78,10 +89,12 @@ class KITTIOdometryDataset(Dataset):
             if self.combined:
                 dataset["combined"]["images"].extend(images)
                 dataset["combined"]["relposes"].extend(motions)
+                dataset["combined"]["flows"].extend(flows)
             else:
                 dataset[seq] = {
                     "images": images,
                     "relposes": motions,
+                    "flows": flows
                 }
                 self.index_ranges.append(self.index_ranges[-1] + len(motions))
 
@@ -114,9 +127,12 @@ class KITTIOdometryDataset(Dataset):
 
         imgfile1 = self.dataset[seq_name]["images"][sample_idx]
         imgfile2 = self.dataset[seq_name]["images"][sample_idx + 1] # This will work for last frames, because sample_idx will always be one less than the number of images
-
+        
         img1 = cv2.imread(str(imgfile1))
         img2 = cv2.imread(str(imgfile2))
+
+        flowfile = self.dataset[seq_name]['flows'][sample_idx]
+        flow = np.load(flowfile)
 
         h, w, _ = img1.shape
         intrinsic = make_intrinsics_layer(
@@ -124,16 +140,16 @@ class KITTIOdometryDataset(Dataset):
         )
 
         res = {
-            "img": np.concat([img1, img2], axis=-1),
-            # "intrinsic": intrinsic,
-            "relpose": torch.tensor(
-                self.dataset[seq_name]["relposes"][sample_idx],
-                dtype=torch.float32,
-            ),
+            "img1": img1,
+            "img2": img2,
+            "flow": flow,
+            "intrinsic": intrinsic
         }
 
         if self.transform:
-            # Transform only the image
-            res["img"] = self.transform(res["img"])
-
+            res = self.transform(res)
+        res["relpose"]= torch.tensor(
+                self.dataset[seq_name]["relposes"][sample_idx],
+                dtype=torch.float32,
+            )
         return res
