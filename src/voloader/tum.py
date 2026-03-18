@@ -3,11 +3,9 @@ import cv2
 from torch.utils.data import Dataset
 import torch
 
-from os import listdir
 import os
 import pandas as pd
 from pathlib import Path
-from tqdm import tqdm
 
 from .transformation import pos_quats2SEs, pose2motion, SEs2ses
 from .utils import make_intrinsics_layer
@@ -73,7 +71,7 @@ def load_associations(images, file):
     images = [parent / f"{path}" for path in df["path"]]
     return poses, images
 
-class IndoorDataset(Dataset):
+class TumDataset(Dataset):
     def __init__(self, 
                  data_path: str,
                  transform = None,
